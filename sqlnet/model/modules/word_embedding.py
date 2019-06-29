@@ -8,15 +8,23 @@ import numpy as np
 class WordEmbedding(nn.Module):
     def __init__(self, word_emb, N_word, gpu, SQL_TOK, our_model, trainable=False):
         super(WordEmbedding, self).__init__()
-        self.trainable = trainable
-        self.N_word = N_word
-        self.our_model = our_model
+        self.trainable = trainable #是否自己训练emb
+        self.N_word = N_word #word_emb的大小
+        self.our_model = our_model 
         self.gpu = gpu
         self.SQL_TOK = SQL_TOK
 
         if trainable:
             print ("Using trainable embedding")
-            self.w2i, word_emb_val = word_emb
+            #self.w2i, word_emb_val = word_emb
+            i=3
+            self.w2i={"<BEG>":1,"END":2}
+            word_emb_val=[[0 for _ in range(N_word)]for i in range(2)]
+            for index,emb_val in word_emb.items():
+                self.w2i[index]=i
+                word_emb_val.append(emb_val)
+                i+=1
+            word_emb_val=np.array(word_emb_val)
             self.embedding = nn.Embedding(len(self.w2i), N_word)
             self.embedding.weight = nn.Parameter(
                     torch.from_numpy(word_emb_val.astype(np.float32)))
@@ -31,7 +39,8 @@ class WordEmbedding(nn.Module):
         for i, (one_q, one_col) in enumerate(zip(q, col)):
             if self.trainable:
                 q_val = [self.w2i.get(x,0) for x in one_q]
-                val_embs.append([1] + q_val + [2])  #<BEG> and <END>
+                #print('<BEG>' in self.w2i.keys())
+                val_embs.append([1]+q_val+[2])  #<BEG> and <END>
             else:
                 # print (i)
                 # print ([x.encode('utf-8') for x in one_q])

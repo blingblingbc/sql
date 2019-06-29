@@ -17,16 +17,18 @@ def load_data(sql_paths, table_paths, use_small=False):
                 sql = json.loads(line.strip())
                 if use_small and idx >= 1000:
                     break
-                sql_data.append(sql)
+                sql_data.append(sql) #sql为字典类型，如{'table_id': '69d56680334311e9a917542696d6e445', 
+                                     # 'question': '哪个一线城市2010供应面积大于1500而且2011供应面积也大于1500', 
+                                     # 'sql': {'agg': [0], 'cond_conn_op': 1, 'sel': [0], 'conds': [[1, 0, '1500'], [2, 0, '1500']]}}
         print ("Loaded %d data from %s" % (len(sql_data), SQL_PATH))
 
     for TABLE_PATH in table_paths:
         with open(TABLE_PATH, encoding='utf-8') as inf:
             for line in inf:
                 tab = json.loads(line.strip())
-                table_data[tab[u'id']] = tab
+                table_data[tab[u'id']] = tab #table_data["table_id"]=tab,tab为json文件中的字典
         print ("Loaded %d data from %s" % (len(table_data), TABLE_PATH))
-
+    #选取table_id在table.json文件中的sql_data
     ret_sql_data = []
     for sql in sql_data:
         if sql[u'table_id'] in table_data:
@@ -57,7 +59,7 @@ def to_batch_seq(sql_data, table_data, idxes, st, ed, ret_vis_data=False):
     sel_num_seq = []
     for i in range(st, ed):
         sql = sql_data[idxes[i]]
-        sel_num = len(sql['sql']['sel'])
+        sel_num = len(sql['sql']['sel']) 
         sel_num_seq.append(sel_num)
         conds_num = len(sql['sql']['conds'])
         q_seq.append([char for char in sql['question']])
@@ -106,12 +108,13 @@ def to_batch_query(sql_data, idxes, st, ed):
 
 def epoch_train(model, optimizer, batch_size, sql_data, table_data):
     model.train()
-    perm=np.random.permutation(len(sql_data))
-    perm = list(range(len(sql_data)))
+    perm=np.random.permutation(len(sql_data))#用shuffle太大，直接permutationidx
+    perm = list(range(len(sql_data))) #按顺序训练
+
     cum_loss = 0.0
     for st in tqdm(range(len(sql_data)//batch_size+1)):
-        ed = (st+1)*batch_size if (st+1)*batch_size < len(perm) else len(perm)
-        st = st * batch_size
+        ed = (st+1)*batch_size if (st+1)*batch_size < len(perm) else len(perm) # 一个batch的end
+        st = st * batch_size #一个batch的start
         q_seq, gt_sel_num, col_seq, col_num, ans_seq, gt_cond_seq = to_batch_seq(sql_data, table_data, perm, st, ed)
         # q_seq: char-based sequence of question
         # gt_sel_num: number of selected columns and aggregation functions
@@ -119,8 +122,8 @@ def epoch_train(model, optimizer, batch_size, sql_data, table_data):
         # col_num: number of headers in one table
         # ans_seq: (sel, number of conds, sel list in conds, op list in conds)
         # gt_cond_seq: ground truth of conds
-        gt_where_seq = model.generate_gt_where_seq_test(q_seq, gt_cond_seq)
-        gt_sel_seq = [x[1] for x in ans_seq]
+        gt_where_seq = model.generate_gt_where_seq_test(q_seq, gt_cond_seq) #查找自然语言问题中cond的位置
+        gt_sel_seq = [x[1] for x in ans_seq] #sql中sel的col的list
         score = model.forward(q_seq, col_seq, col_num, gt_where=gt_where_seq, gt_cond=gt_cond_seq, gt_sel=gt_sel_seq, gt_sel_num=gt_sel_num)
         # sel_num_score, sel_col_score, sel_agg_score, cond_score, cond_rela_score
 
@@ -143,7 +146,9 @@ def predict_test(model, batch_size, sql_data, table_data, output_path):
         score = model.forward(q_seq, col_seq, col_num)
         sql_preds = model.gen_query(score, q_seq, col_seq, raw_q_seq)
         for sql_pred in sql_preds:
-            fw.writelines(json.dumps(sql_pred,ensure_ascii=False).encode('utf-8')+'\n')
+            sql_pred=eval(str(sql_pred))
+            fw.writelines(json.dumps(sql_pred,ensure_ascii=False)+'\n')
+            #fw.writelines(json.dumps(sql_pred,ensure_ascii=False).encode('utf-8')+'\n')
     fw.close()
 
 def epoch_acc(model, batch_size, sql_data, table_data, db_path):

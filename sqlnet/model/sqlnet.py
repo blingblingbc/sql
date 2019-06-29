@@ -15,7 +15,7 @@ class SQLNet(nn.Module):
     def __init__(self, word_emb, N_word, N_h=100, N_depth=2,
             gpu=False, use_ca=True, trainable_emb=False):
         super(SQLNet, self).__init__()
-        self.use_ca = use_ca
+        self.use_ca = use_ca #ca:col_attention
         self.trainable_emb = trainable_emb
 
         self.gpu = gpu
@@ -28,8 +28,16 @@ class SQLNet(nn.Module):
         self.COND_OPS = ['>', '<', '==', '!=']
 
         # Word embedding
-        self.embed_layer = WordEmbedding(word_emb, N_word, gpu, self.SQL_TOK, our_model=True, trainable=trainable_emb)
+        if not trainable_emb:
+            self.embed_layer = WordEmbedding(word_emb, N_word, gpu, self.SQL_TOK, our_model=True, trainable=trainable_emb)
+        else:
+            self.agg_embed_layer = WordEmbedding(word_emb, N_word, gpu, self.SQL_TOK, our_model=True, trainable=trainable_emb)
+            self.sel_embed_layer = WordEmbedding(word_emb, N_word, gpu, self.SQL_TOK, our_model=True, trainable=trainable_emb)
+            self.cond_embed_layer = WordEmbedding(word_emb, N_word, gpu, self.SQL_TOK, our_model=True, trainable=trainable_emb)
+            self.sel_num_embed_layer = WordEmbedding(word_emb, N_word, gpu, self.SQL_TOK, our_model=True, trainable=trainable_emb)
+            self.where_embed_layer = WordEmbedding(word_emb, N_word, gpu, self.SQL_TOK, our_model=True, trainable=trainable_emb)
 
+        
         # Predict the number of selected columns
         self.sel_num = SelNumPredictor(N_word, N_h, N_depth, use_ca=use_ca)
 
@@ -45,7 +53,7 @@ class SQLNet(nn.Module):
         # Predict condition relationship, like 'and', 'or'
         self.where_rela_pred = WhereRelationPredictor(N_word, N_h, N_depth, use_ca=use_ca)
 
-
+        
         self.CE = nn.CrossEntropyLoss()
         self.softmax = nn.Softmax(dim=-1)
         self.log_softmax = nn.LogSoftmax()
@@ -76,33 +84,54 @@ class SQLNet(nn.Module):
                 record_cond.append(temp_ret_seq)
             ret_seq.append(record_cond)
         return ret_seq
-
+    
     def forward(self, q, col, col_num, gt_where = None, gt_cond=None, reinforce=False, gt_sel=None, gt_sel_num=None):
-        B = len(q)
-
+        B = len(q)#q：question，以string形式
+ 
         sel_num_score = None
         agg_score = None
         sel_score = None
         cond_score = None
         #Predict aggregator
         if self.trainable_emb:
-            x_emb_var, x_len = self.agg_embed_layer.gen_x_batch(q, col)
-            col_inp_var, col_name_len, col_len = self.agg_embed_layer.gen_col_batch(col)
-            max_x_len = max(x_len)
-            agg_score = self.agg_pred(x_emb_var, x_len, col_inp_var,
-                    col_name_len, col_len, col_num, gt_sel=gt_sel)
-
+            x_emb_var, x_len = self.sel_num_embed_layer.gen_x_batch(q, col)
+            col_inp_var, col_name_len, col_len = self.sel_num_embed_layer.gen_col_batch(col)
+            sel_num_score = self.sel_num(x_emb_var, x_len, col_inp_var, col_name_len, col_len, col_num)
+            
+            if gt_sel_num:
+                pr_sel_num = gt_sel_num
+            else:
+                pr_sel_num = np.argmax(sel_num_score.data.cpu().numpy(), axis=1)
             x_emb_var, x_len = self.sel_embed_layer.gen_x_batch(q, col)
             col_inp_var, col_name_len, col_len = self.sel_embed_layer.gen_col_batch(col)
             max_x_len = max(x_len)
             sel_score = self.sel_pred(x_emb_var, x_len, col_inp_var,
                     col_name_len, col_len, col_num)
+            
+            if gt_sel:
+                pr_sel = gt_sel
+            else:
+                num = np.argmax(sel_num_score.data.cpu().numpy(), axis=1)
+                sel = sel_score.data.cpu().numpy()
+                pr_sel = [list(np.argsort(-sel[b])[:num[b]]) for b in range(len(num))]
+            x_emb_var, x_len = self.agg_embed_layer.gen_x_batch(q, col)
+            col_inp_var, col_name_len, col_len = self.agg_embed_layer.gen_col_batch(col)
+            max_x_len = max(x_len)
+            agg_score = self.agg_pred(x_emb_var, x_len, col_inp_var,
+                    col_name_len, col_len, col_num, gt_sel=pr_sel, gt_sel_num=pr_sel_num)
+
+            
 
             x_emb_var, x_len = self.cond_embed_layer.gen_x_batch(q, col)
             col_inp_var, col_name_len, col_len = self.cond_embed_layer.gen_col_batch(col)
             max_x_len = max(x_len)
             cond_score = self.cond_pred(x_emb_var, x_len, col_inp_var, col_name_len, col_len, col_num, gt_where, gt_cond, reinforce=reinforce)
-            where_rela_score = None
+            
+            
+            x_emb_var, x_len = self.where_embed_layer.gen_x_batch(q, col)
+            col_inp_var, col_name_len, col_len = self.where_embed_layer.gen_col_batch(col)
+            max_x_len = max(x_len)
+            where_rela_score = self.where_rela_pred(x_emb_var, x_len, col_inp_var, col_name_len, col_len, col_num)
         else:
             x_emb_var, x_len = self.embed_layer.gen_x_batch(q, col)
             col_inp_var, col_name_len, col_len = self.embed_layer.gen_col_batch(col)
