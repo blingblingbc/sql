@@ -39,7 +39,7 @@ class AggPredictor(nn.Module):
             cur_col_emb = torch.stack([e_col[b,x] for x in gt_sel[b]] + [e_col[b,0]] * (4-len(gt_sel[b])))
             col_emb.append(cur_col_emb)
         col_emb = torch.stack(col_emb)
-
+        #tmp=self.agg_att(h_enc).unsqueeze(1)
         att_val = torch.matmul(self.agg_att(h_enc).unsqueeze(1), col_emb.unsqueeze(3)).squeeze() # .transpose(1,2))
 
         for idx, num in enumerate(x_len):

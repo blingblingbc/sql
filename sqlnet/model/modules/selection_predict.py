@@ -33,7 +33,8 @@ class SelPredictor(nn.Module):
 
         e_col, _ = col_name_encode(col_inp_var, col_name_len, col_len, self.sel_col_name_enc) # [bs, col_num, hid]
         h_enc, _ = run_lstm(self.sel_lstm, x_emb_var, x_len) # [bs, seq_len, hid]
-
+        A=self.sel_att(h_enc)
+        A=A.transpose(1, 2)
         att_val = torch.bmm(e_col, self.sel_att(h_enc).transpose(1, 2)) # [bs, col_num, seq_len]
         for idx, num in enumerate(x_len):
             if num < max_x_len:

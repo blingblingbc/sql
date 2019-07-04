@@ -8,6 +8,7 @@ def run_lstm(lstm, inp, inp_len, hidden=None):
     # This requires to first sort the input according to its length.
     sort_perm = np.array(sorted(range(len(inp_len)),
         key=lambda k:inp_len[k], reverse=True))
+    #np.sum(inp_len)
     sort_inp_len = inp_len[sort_perm]
     sort_perm_inv = np.argsort(sort_perm)
     if inp.is_cuda:

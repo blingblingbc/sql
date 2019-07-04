@@ -207,9 +207,9 @@ class SQLNetCondPredictor(nn.Module):
                     gt_tok_seq.view(B*4, -1, self.max_tok_num))
             g_str_s = g_str_s_flat.contiguous().view(B, 4, -1, self.N_h)
 
-            h_ext = h_str_enc.unsqueeze(1).unsqueeze(1)
-            g_ext = g_str_s.unsqueeze(3)
-            col_ext = col_emb.unsqueeze(2).unsqueeze(2)
+            h_ext = h_str_enc.unsqueeze(1).unsqueeze(1) #question的encoding matrix
+            g_ext = g_str_s.unsqueeze(3) #value string encoding 
+            col_ext = col_emb.unsqueeze(2).unsqueeze(2) #col encoding
 
             cond_str_score = self.cond_str_out(
                     self.cond_str_out_h(h_ext) + self.cond_str_out_g(g_ext) +

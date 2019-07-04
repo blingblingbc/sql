@@ -1,6 +1,6 @@
 import torch
-from sqlnet.utils import *
 from sqlnet.model.sqlnet import SQLNet
+from sqlnet.utils import *
 
 import argparse
 
@@ -16,7 +16,7 @@ if __name__ == '__main__':
     parser.add_argument('--logdir', type=str, default='', help='Path of save experiment log')
     args = parser.parse_args()
 
-    n_word=300
+    n_word=768
     if args.toy:
         use_small=True
         gpu=args.gpu
@@ -30,8 +30,8 @@ if __name__ == '__main__':
     # load dataset
     train_sql, train_table, train_db, dev_sql, dev_table, dev_db = load_dataset(use_small=use_small)
 
-    word_emb = load_word_emb('data/char_embedding.json')
-    model = SQLNet(word_emb, N_word=n_word, use_ca=args.ca, gpu=gpu, trainable_emb=args.train_emb)
+    #word_emb = load_word_emb('data/char_embedding.json')
+    model = SQLNet(N_word=n_word, use_ca=args.ca, gpu=gpu, trainable_emb=args.train_emb)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=0)
 
     if args.restore:
