@@ -192,18 +192,18 @@ def read_examples(str_list):
 
 
 
-def get_emb(str_list,max_seq_len,
-    do_lower_case=True,layer_indexes=[1,2,3,4],batch_size=32,gpu=False):
+def get_emb(str_list,max_seq_len,output_file,
+    do_lower_case=True,layer_indexes=[1,2,3,4],batch_size=16,gpu=False):
 
 
-    if not gpu:
-        device = torch.device("cuda" if torch.cuda.is_available() and gpu else "cpu")
-        #n_gpu = torch.cuda.device_count()
-    else:
-        device = torch.device("cuda", 0)
-        n_gpu = 1
+    #if not gpu:
+    device = torch.device("cuda" if torch.cuda.is_available() and gpu else "cpu")
+    n_gpu = torch.cuda.device_count()
+    #else:
+        #device = torch.device("cuda", 0)
+        #n_gpu = 1
         # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
-        torch.distributed.init_process_group(backend='nccl')
+        #torch.distributed.init_process_group(backend='nccl')
     #logger.info("device: {} n_gpu: {} distributed training: {}".format(device, n_gpu, bool(args.local_rank != -1)))
 
 
@@ -213,19 +213,20 @@ def get_emb(str_list,max_seq_len,
 
     features = convert_examples_to_features(
         examples=examples, seq_length=max_seq_len, tokenizer=tokenizer)
-    out_questions={}
-    for feat in features:
-        out_questions[feat.unique_id]=feat.tokens[1:-1]
+    #out_questions={}
+    #for feat in features:
+        #out_questions[feat.unique_id]=feat.tokens[1:-1]
+
     #unique_id_to_feature = {}
     #for feature in features:
     #    unique_id_to_feature[feature.unique_id] = feature
 
-    model = BertModel.from_pretrained("bert-base-chinese")
+    model = BertModel.from_pretrained('bert-base-chinese')
     model.to(device)
 
-    if gpu:
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[0],
-                                                          output_device=0)
+    #if gpu:
+        #model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[0],
+        #                                                  output_device=0)
     #elif n_gpu > 1:
     #    model = torch.nn.DataParallel(model)
 
@@ -234,32 +235,34 @@ def get_emb(str_list,max_seq_len,
     all_example_index = torch.arange(all_input_ids.size(0), dtype=torch.long)
 
     eval_data = TensorDataset(all_input_ids, all_input_mask, all_example_index)
-    if not gpu:
-        eval_sampler = SequentialSampler(eval_data)
-    else:
-        eval_sampler = DistributedSampler(eval_data)
+    #if not gpu:
+    eval_sampler = SequentialSampler(eval_data)
+    #else:
+        #eval_sampler = DistributedSampler(eval_data)
     eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=batch_size)
 
     model.eval()
-    #with open(args.output_file, "w") as writer:
-    output_json = collections.OrderedDict()
-    for input_ids, input_mask, example_indices in eval_dataloader:
-        input_ids = input_ids.to(device)
-        input_mask = input_mask.to(device)
+    output_json={}
+    with open(output_file, "w") as writer:
+        for input_ids, input_mask, example_indices in eval_dataloader:
+            input_ids = input_ids.to(device)
+            input_mask = input_mask.to(device)
 
-        all_encoder_layers, _ = model(input_ids, token_type_ids=None, attention_mask=input_mask)
-        all_encoder_layers = all_encoder_layers
+            all_encoder_layers, _ = model(input_ids, token_type_ids=None, attention_mask=input_mask)
+            all_encoder_layers = all_encoder_layers
 
-        for b, example_index in enumerate(example_indices):
-            feature = features[example_index.item()]
-            unique_id = int(feature.unique_id)
+            for b, example_index in enumerate(example_indices):
+                feature = features[example_index.item()]
+                
+                #unique_id = int(feature.unique_id)
             # feature = unique_id_to_feature[unique_id]
             
             #output_json["linex_index"] = unique_id
-            all_out_features = []
-            for (i, token) in enumerate(feature.tokens):
+            #all_out_features = []
+            #for (i, token) in enumerate(feature.tokens):
                 #all_layers = []
                 #for (j, layer_index) in enumerate(layer_indexes):
+                token = feature.tokens[1]
                 layer_output = all_encoder_layers[int(layer_indexes[-1])].detach().cpu().numpy()
                 layer_output = layer_output[b]
                 #layers = collections.OrderedDict()
@@ -272,9 +275,10 @@ def get_emb(str_list,max_seq_len,
                 #out_features["token"] = token
                 #out_features["layers"] = all_layers
                 out_features=[
-                    round(x.item(), 6) for x in layer_output[i]
+                    round(x.item(), 6) for x in layer_output[1]
                 ]
-                all_out_features.append(out_features)
-            output_json[unique_id] = all_out_features
-            #writer.write(json.dumps(output_json) + "\n")
-    return output_json, out_questions
+                #all_out_features.append(out_features)
+                output_json[token] = out_features
+        writer.write(json.dumps(output_json))
+    print("bert_emb is generated in file : %s"%output_file)
+    return 0

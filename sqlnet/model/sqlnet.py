@@ -12,7 +12,7 @@ from sqlnet.model.modules.where_relation import WhereRelationPredictor
 
 
 class SQLNet(nn.Module):
-    def __init__(self, N_word, N_h=100, N_depth=2,
+    def __init__(self, word_emb, N_word, N_h=100, N_depth=2,
             gpu=False, use_ca=True, trainable_emb=False):
         super(SQLNet, self).__init__()
         self.use_ca = use_ca #ca:col_attention
@@ -29,13 +29,13 @@ class SQLNet(nn.Module):
 
         # Word embedding
         if not trainable_emb:
-            self.embed_layer = WordEmbedding(N_word, gpu, self.SQL_TOK, our_model=True, trainable=trainable_emb)
+            self.embed_layer = WordEmbedding(word_emb, N_word, gpu, self.SQL_TOK, our_model=True, trainable=trainable_emb)
         else:
-            self.agg_embed_layer = WordEmbedding( N_word, gpu, self.SQL_TOK, our_model=True, trainable=trainable_emb)
-            self.sel_embed_layer = WordEmbedding( N_word, gpu, self.SQL_TOK, our_model=True, trainable=trainable_emb)
-            self.cond_embed_layer = WordEmbedding( N_word, gpu, self.SQL_TOK, our_model=True, trainable=trainable_emb)
-            self.sel_num_embed_layer = WordEmbedding( N_word, gpu, self.SQL_TOK, our_model=True, trainable=trainable_emb)
-            self.where_embed_layer = WordEmbedding( N_word, gpu, self.SQL_TOK, our_model=True, trainable=trainable_emb)
+            self.agg_embed_layer = WordEmbedding(word_emb,  N_word, gpu, self.SQL_TOK, our_model=True, trainable=trainable_emb)
+            self.sel_embed_layer = WordEmbedding(word_emb,  N_word, gpu, self.SQL_TOK, our_model=True, trainable=trainable_emb)
+            self.cond_embed_layer = WordEmbedding(word_emb,  N_word, gpu, self.SQL_TOK, our_model=True, trainable=trainable_emb)
+            self.sel_num_embed_layer = WordEmbedding(word_emb,  N_word, gpu, self.SQL_TOK, our_model=True, trainable=trainable_emb)
+            self.where_embed_layer = WordEmbedding(word_emb,  N_word, gpu, self.SQL_TOK, our_model=True, trainable=trainable_emb)
 
         
         # Predict the number of selected columns
@@ -66,17 +66,6 @@ class SQLNet(nn.Module):
         for cur_q, ans in zip(q, gt_cond_seq):
             temp_q = u"".join(cur_q)
             cur_q = [u'<BEG>'] + cur_q + [u'<END>']
-            q_index=[0 for _ in range(len(temp_q))]
-            j=0
-            for i in range(1,len(cur_q)-1):
-                if cur_q[i]==temp_q[j]:
-                    q_index[j]=i
-                    j+=1
-                else:
-                    for k in range(len(cur_q[i])):
-                        q_index[j+k]=i
-                    j+=len(cur_q[i])
-                    
             record = []
             record_cond = []
             for cond in ans:
@@ -88,11 +77,7 @@ class SQLNet(nn.Module):
                 temp_ret_seq = []
                 if item[0]:
                     temp_ret_seq.append(0)
-                    if q_index[int(temp_q.index(item[1]))]!=q_index[int(temp_q.index(item[1]))+len(item[1])-1]:
-                        temp_ret_seq.extend(list(range(q_index[int(temp_q.index(item[1]))],q_index[int(temp_q.index(item[1]))+len(item[1])-1])))
-                    else:
-                        temp_ret_seq.extend([q_index[int(temp_q.index(item[1]))]])
-                    #temp_ret_seq.extend(list(range(temp_q.index(item[1])+1,temp_q.index(item[1])+len(item[1])+1)))
+                    temp_ret_seq.extend(list(range(temp_q.index(item[1])+1,temp_q.index(item[1])+len(item[1])+1)))
                     temp_ret_seq.append(len(cur_q)-1)
                 else:
                     temp_ret_seq.append([0,len(cur_q)-1])

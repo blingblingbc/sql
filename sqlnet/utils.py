@@ -58,16 +58,12 @@ def to_batch_seq(sql_data, table_data, idxes, st, ed, ret_vis_data=False):
     gt_cond_seq = []
     vis_seq = []
     sel_num_seq = []
-    max_seq_len=0
-    q_char_seq=[]
     for i in range(st, ed):
         sql = sql_data[idxes[i]]
         sel_num = len(sql['sql']['sel']) 
         sel_num_seq.append(sel_num)
         conds_num = len(sql['sql']['conds'])
-        #q_seq.append([char for char in sql['question']])
-        q_char_seq.append(sql['question'])
-        max_seq_len = len(sql['question']) if max_seq_len < len(sql['question']) else max_seq_len
+        q_seq.append([char for char in sql['question']])
         col_seq.append([[char for char in header] for header in table_data[sql['table_id']]['header']])
         col_num.append(len(table_data[sql['table_id']]['header']))
         ans_seq.append(
@@ -83,17 +79,6 @@ def to_batch_seq(sql_data, table_data, idxes, st, ed, ret_vis_data=False):
         gt_cond_seq.append(sql['sql']['conds'])
         vis_seq.append((sql['question'], table_data[sql['table_id']]['header']))
     
-    tokenizer = BertTokenizer.from_pretrained("bert-base-chinese", do_lower_case=True)
-
-    examples = read_examples(q_char_seq)
-
-    features = convert_examples_to_features(
-        examples=examples, seq_length=max_seq_len+2, tokenizer=tokenizer)
-    q_seq_dic={}
-    for feat in features:
-        q_seq_dic[feat.unique_id]=feat.tokens[1:-1]
-    for i in range(len(q_char_seq)):
-        q_seq.append(q_seq_dic[i])
     
     if ret_vis_data:
         return q_seq, sel_num_seq, col_seq, col_num, ans_seq, gt_cond_seq, vis_seq
@@ -106,28 +91,13 @@ def to_batch_seq_test(sql_data, table_data, idxes, st, ed):
     col_num = []
     raw_seq = []
     table_ids = []
-    max_seq_len=0
-    q_char_seq=[]
     for i in range(st, ed):
         sql = sql_data[idxes[i]]
-        #q_seq.append([char for char in sql['question']])
-        q_char_seq.append(sql['question'])
-        max_seq_len = len(sql['question']) if max_seq_len < len(sql['question']) else max_seq_lencol_seq.append([[char for char in header] for header in table_data[sql['table_id']]['header']])
+        q_seq.append([char for char in sql['question']])
+        col_seq.append([[char for char in header] for header in table_data[sql['table_id']]['header']])
         col_num.append(len(table_data[sql['table_id']]['header']))
         raw_seq.append(sql['question'])
         table_ids.append(sql_data[idxes[i]]['table_id'])
-    tokenizer = BertTokenizer.from_pretrained("bert-base-chinese", do_lower_case=True)
-
-    examples = read_examples(q_char_seq)
-
-    features = convert_examples_to_features(
-        examples=examples, seq_length=max_seq_len+2, tokenizer=tokenizer)
-    q_seq_dic={}
-    for feat in features:
-        q_seq_dic[feat.unique_id]=feat.tokens[1:-1]
-    for i in range(len(q_char_seq)):
-        q_seq.append(q_seq_dic[i])
-        
     return q_seq, col_seq, col_num, raw_seq, table_ids
 
 def to_batch_query(sql_data, idxes, st, ed):
@@ -241,3 +211,14 @@ def load_word_emb(file_name):
     #         if info[0].lower() not in ret:
     #             ret[info[0]] = np.array([float(x) for x in info[1:]])
     return ret
+
+
+def transform_word_emb(filename):
+    print("Loading words from %s"%filename)
+    f = open(filename)
+    old_word_emb = json.load(f)
+    f.close()
+    ret=[]
+    for key in old_word_emb:
+        ret.append(key)
+    return ret    

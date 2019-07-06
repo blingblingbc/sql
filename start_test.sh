@@ -1,2 +1,2 @@
 #!/usr/bin/bash
-CUDA_VISIBLE_DEVICES=$1 python test.py --ca --gpu --output_dir $2
+CUDA_VISIBLE_DEVICES=$1 python3 test.py --ca --gpu --output_dir $2
