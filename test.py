@@ -13,7 +13,7 @@ if __name__ == '__main__':
     parser.add_argument('--output_dir', type=str, default='', help='Output path of prediction result')
     args = parser.parse_args()
 
-    n_word=300
+    n_word=768
     if args.toy:
         use_small=True
         gpu=args.gpu
@@ -25,8 +25,8 @@ if __name__ == '__main__':
 
     dev_sql, dev_table, dev_db, test_sql, test_table, test_db = load_dataset(use_small=use_small, mode='test')
 
-    #word_emb = load_word_emb('data/char_embedding.json')
-    model = SQLNet( N_word=n_word, use_ca=args.ca, gpu=gpu, trainable_emb=args.train_emb)
+    word_emb = load_word_emb('data/test/new_test_bert.json')
+    model = SQLNet(word_emb, N_word=n_word, use_ca=args.ca, gpu=gpu, trainable_emb=args.train_emb)
 
     model_path = 'saved_model/best_model'
     print ("Loading from %s" % model_path)

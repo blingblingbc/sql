@@ -32,12 +32,14 @@ class InputExample(object):
 class InputFeatures(object):
     """A single set of features of data."""
 
-    def __init__(self, unique_id, tokens, input_ids, input_mask, input_type_ids):
+    def __init__(self, unique_id, tokens, input_ids, input_mask, input_type_ids, text_a, text_b):
         self.unique_id = unique_id
         self.tokens = tokens
         self.input_ids = input_ids
         self.input_mask = input_mask
         self.input_type_ids = input_type_ids
+        self.text_a = text_a
+        self.text_b = text_b
 
 
 def convert_examples_to_features(examples, seq_length, tokenizer):
@@ -45,11 +47,12 @@ def convert_examples_to_features(examples, seq_length, tokenizer):
 
     features = []
     for (ex_index, example) in enumerate(examples):
-        tokens_a = tokenizer.tokenize(example.text_a)
-
+        #tokens_a = tokenizer.tokenize(example.text_a)
+        tokens_a = [char for char in example.text_a]
         tokens_b = None
         if example.text_b:
-            tokens_b = tokenizer.tokenize(example.text_b)
+            #tokens_b = tokenizer.tokenize(example.text_b)
+            tokens_b = [char for char in example.text_b]
 
         if tokens_b:
             # Modifies `tokens_a` and `tokens_b` in place so that the total
@@ -128,7 +131,10 @@ def convert_examples_to_features(examples, seq_length, tokenizer):
                 tokens=tokens,
                 input_ids=input_ids,
                 input_mask=input_mask,
-                input_type_ids=input_type_ids))
+                input_type_ids=input_type_ids,
+                text_a = example.text_a,
+                text_b = example.text_b
+                ))
     return features
 
 
@@ -156,7 +162,7 @@ def read_examples(str_list):
         text_a = "".join(s)
         text_b = None
         examples.append(InputExample(unique_id=i, text_a=text_a, text_b=text_b))
-    '''
+    """
     with open(input_file, "r", encoding='utf-8') as reader:
         while True:
             line = reader.readline()
@@ -187,10 +193,205 @@ def read_examples(str_list):
                     text_b = None
                     examples.append(InputExample(unique_id=unique_id, text_a=text_a, text_b=text_b))
                     unique_id += 1
-    '''
+    """
     return examples
 
+def read_q_examples(inputfile):
+    
+    examples = []
+    with open(inputfile, "r", encoding='utf-8') as reader:
+        unique_id = 0
+        max_len = 0
+        while True:
+            line = reader.readline()
+            if not line:
+                break
+            data=json.loads(line)
+            text_a = data["question"]
+            text_b = None
+            #m = re.match(r"^(.*) \|\|\| (.*)$", line)
+            #if m is None:
+                #text_a = line
+            #else:
+            #    text_a = m.group(1)
+            #    text_b = m.group(2)
+            text_b = data["title"]
+            max_len = max_len if max_len >= len(text_a) + len(text_b) else len(text_a) + len(text_b)
+            examples.append(InputExample(unique_id=unique_id, text_a=text_a, text_b=text_b))
+            unique_id += 1
+    return examples, max_len+3
 
+def read_col_examples(inputfile):
+    examples = []
+    with open(inputfile, "r", encoding='utf-8') as reader:
+        unique_id = 0
+        max_len=0
+        while True:
+            line = reader.readline()
+            if not line:
+                break
+            data=json.loads(line)
+            for char in data["header"]:
+                text_a = char
+                text_b = data["title"]
+                max_len = max_len if max_len >= len(text_a) + len(text_b) else len(text_a) + len(text_b)
+            #m = re.match(r"^(.*) \|\|\| (.*)$", line)
+            #if m is None:
+                #text_a = line
+            #else:
+            #    text_a = m.group(1)
+            #    text_b = m.group(2)
+                examples.append(InputExample(unique_id=unique_id, text_a=text_a, text_b=text_b))
+                unique_id += 1
+    return examples, max_len+3
+
+def gen_q_emb(inputfile, outputfile,
+    do_lower_case = True, batch_size = 16, gpu = False):
+
+    device = torch.device("cuda" if torch.cuda.is_available() and gpu else "cpu")
+    n_gpu = torch.cuda.device_count()
+
+    tokenizer = BertTokenizer.from_pretrained("bert-base-chinese", do_lower_case=do_lower_case)
+
+    examples, max_seq_len = read_q_examples(inputfile)
+
+    features = convert_examples_to_features(
+        examples=examples, seq_length=max_seq_len, tokenizer=tokenizer)
+
+    model = BertModel.from_pretrained('bert-base-chinese')
+    model.to(device)
+
+    all_input_ids = torch.tensor([f.input_ids for f in features], dtype=torch.long)
+    all_input_mask = torch.tensor([f.input_mask for f in features], dtype=torch.long)
+    all_example_index = torch.arange(all_input_ids.size(0), dtype=torch.long)
+
+    eval_data = TensorDataset(all_input_ids, all_input_mask, all_example_index)
+    
+    eval_sampler = SequentialSampler(eval_data)
+    
+    eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=batch_size)
+
+    model.eval()
+    output_json={}
+
+    with open(outputfile, "w") as writer:
+        for input_ids, input_mask, example_indices in eval_dataloader:
+            input_ids = input_ids.to(device)
+            input_mask = input_mask.to(device)
+
+            all_encoder_layers, _ = model(input_ids, token_type_ids=None, attention_mask=input_mask)
+            all_encoder_layers = all_encoder_layers
+
+            for b, example_index in enumerate(example_indices):
+                feature = features[example_index.item()]
+                
+                #unique_id = int(feature.unique_id)
+            # feature = unique_id_to_feature[unique_id]
+            
+            #output_json["linex_index"] = unique_id
+                all_out_features = []
+                for (i, token) in enumerate(feature.tokens):
+                    if i == 0 or feature.tokens[i-1] != "[SEP]":
+                #all_layers = []
+                #for (j, layer_index) in enumerate(layer_indexes):
+                #token = feature.tokens[1]
+                        layer_output = all_encoder_layers[int(12)].detach().cpu().numpy()
+                        layer_output = layer_output[b]
+                #layers = collections.OrderedDict()
+                #layers["index"] = layer_index
+                #layers["values"] = [
+                #    round(x.item(), 6) for x in layer_output[i]
+                #]
+                #all_layers.append(layers)
+                #out_features = collections.OrderedDict()
+                #out_features["token"] = token
+                #out_features["layers"] = all_layers
+                        out_features=[
+                            round(x.item(), 6) for x in layer_output[i]
+                        ]
+                        all_out_features.append(out_features)
+                    else:
+                        break   
+                output_json[feature.text_a] = all_out_features
+        writer.write(json.dumps(output_json))
+    print("bert_question_emb is generated in file : %s"%outputfile)
+    return 0
+
+def gen_col_emb(inputfile, outputfile,
+    do_lower_case = True, batch_size = 16, gpu = False):
+
+    device = torch.device("cuda" if torch.cuda.is_available() and gpu else "cpu")
+    n_gpu = torch.cuda.device_count()
+
+    tokenizer = BertTokenizer.from_pretrained("bert-base-chinese", do_lower_case=do_lower_case)
+    
+    
+    examples, max_seq_len = read_col_examples(inputfile)
+
+    features = convert_examples_to_features(
+        examples=examples, seq_length=max_seq_len, tokenizer=tokenizer)
+    
+    model = BertModel.from_pretrained('bert-base-chinese')
+    model.to(device)
+
+    all_input_ids = torch.tensor([f.input_ids for f in features], dtype=torch.long)
+    all_input_mask = torch.tensor([f.input_mask for f in features], dtype=torch.long)
+    all_example_index = torch.arange(all_input_ids.size(0), dtype=torch.long)
+
+    eval_data = TensorDataset(all_input_ids, all_input_mask, all_example_index)
+    
+    eval_sampler = SequentialSampler(eval_data)
+    
+    eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=batch_size)
+
+    model.eval()
+    output_json={}
+
+    with open(outputfile, "w") as writer:
+        for input_ids, input_mask, example_indices in eval_dataloader:
+            input_ids = input_ids.to(device)
+            input_mask = input_mask.to(device)
+
+            all_encoder_layers, _ = model(input_ids, token_type_ids=None, attention_mask=input_mask)
+            all_encoder_layers = all_encoder_layers
+
+            for b, example_index in enumerate(example_indices):
+                feature = features[example_index.item()]
+                
+                #unique_id = int(feature.unique_id)
+            # feature = unique_id_to_feature[unique_id]
+            
+            #output_json["linex_index"] = unique_id
+                all_out_features = []
+                for (i, token) in enumerate(feature.tokens):
+                    if i == 0 or feature.tokens[i-1] != "[SEP]":
+                #all_layers = []
+                #for (j, layer_index) in enumerate(layer_indexes):
+                #token = feature.tokens[1]
+                        layer_output = all_encoder_layers[int(12)].detach().cpu().numpy()
+                        layer_output = layer_output[b]
+                #layers = collections.OrderedDict()
+                #layers["index"] = layer_index
+                #layers["values"] = [
+                #    round(x.item(), 6) for x in layer_output[i]
+                #]
+                #all_layers.append(layers)
+                #out_features = collections.OrderedDict()
+                #out_features["token"] = token
+                #out_features["layers"] = all_layers
+                        out_features=[
+                            round(x.item(), 6) for x in layer_output[i]
+                        ]
+                        all_out_features.append(out_features)
+                    else:
+                        break 
+                if feature.text_b not in output_json.keys():
+                    output_json[feature.text_b] = {}
+                output_json[feature.text_b][feature.text_a]] = all_out_features
+        writer.write(json.dumps(output_json))
+    print("bert_col_emb is generated in file : %s"%outputfile)
+    return 0
+    
 
 def get_emb(str_list,max_seq_len,output_file,
     do_lower_case=True,layer_indexes=[1,2,3,4],batch_size=16,gpu=False):

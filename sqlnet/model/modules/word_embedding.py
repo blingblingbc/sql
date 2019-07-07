@@ -75,7 +75,7 @@ class WordEmbedding(nn.Module):
             val_inp_var = Variable(val_inp)
         return val_inp_var, val_len
 
-    def gen_col_batch(self, cols):
+    def gen_col_batch(self, q,cols):
         ret = []
         col_len = np.zeros(len(cols), dtype=np.int64)
 
@@ -84,23 +84,29 @@ class WordEmbedding(nn.Module):
             names = names + one_cols
             col_len[b] = len(one_cols)
 
-        name_inp_var, name_len = self.str_list_to_batch(names)
+        name_inp_var, name_len = self.str_list_to_batch(q,names)
         return name_inp_var, name_len, col_len
 
-    def str_list_to_batch(self, str_list):
+    def str_list_to_batch(self, q,str_list):
         B = len(str_list)
         val_embs = []
 
         val_len = np.zeros(B, dtype=np.int64)
-        for i, one_str in enumerate(str_list):
+        i=0
+        for one_q in q:
+            for _, val in one_q['col'].items():
+                val_embs.append(val)
+                val_len[i] = len(val)
+                i+=1
+        #for i, one_str in enumerate(str_list):
 
-            if self.trainable:
-                val = [self.w2i.get(x, 0) for x in one_str]
-            else:
+        #    if self.trainable:
+        #        val = [self.w2i.get(x, 0) for x in one_str]
+        #    else:
                 
-                val = [self.word_emb.get(x, np.zeros(self.N_word, dtype=np.float32)) for x in one_str]
-            val_embs.append(val)
-            val_len[i] = len(val)
+        #        val = [self.word_emb.get(x, np.zeros(self.N_word, dtype=np.float32)) for x in one_str]
+        #    val_embs.append(val)
+        #    val_len[i] = len(val)
         max_len=max(val_len)
 
         if self.trainable:

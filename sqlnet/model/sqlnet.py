@@ -95,7 +95,7 @@ class SQLNet(nn.Module):
         #Predict aggregator
         if self.trainable_emb:
             x_emb_var, x_len = self.sel_num_embed_layer.gen_x_batch(q, col)
-            col_inp_var, col_name_len, col_len = self.sel_num_embed_layer.gen_col_batch(col)
+            col_inp_var, col_name_len, col_len = self.sel_num_embed_layer.gen_col_batch(q,col)
             sel_num_score = self.sel_num(x_emb_var, x_len, col_inp_var, col_name_len, col_len, col_num)
             
             if gt_sel_num:
@@ -103,7 +103,7 @@ class SQLNet(nn.Module):
             else:
                 pr_sel_num = np.argmax(sel_num_score.data.cpu().numpy(), axis=1)
             x_emb_var, x_len = self.sel_embed_layer.gen_x_batch(q, col)
-            col_inp_var, col_name_len, col_len = self.sel_embed_layer.gen_col_batch(col)
+            col_inp_var, col_name_len, col_len = self.sel_embed_layer.gen_col_batch(q,col)
             max_x_len = max(x_len)
             sel_score = self.sel_pred(x_emb_var, x_len, col_inp_var,
                     col_name_len, col_len, col_num)
@@ -115,7 +115,7 @@ class SQLNet(nn.Module):
                 sel = sel_score.data.cpu().numpy()
                 pr_sel = [list(np.argsort(-sel[b])[:num[b]]) for b in range(len(num))]
             x_emb_var, x_len = self.agg_embed_layer.gen_x_batch(q, col)
-            col_inp_var, col_name_len, col_len = self.agg_embed_layer.gen_col_batch(col)
+            col_inp_var, col_name_len, col_len = self.agg_embed_layer.gen_col_batch(q,col)
             max_x_len = max(x_len)
             agg_score = self.agg_pred(x_emb_var, x_len, col_inp_var,
                     col_name_len, col_len, col_num, gt_sel=pr_sel, gt_sel_num=pr_sel_num)
@@ -123,18 +123,18 @@ class SQLNet(nn.Module):
             
 
             x_emb_var, x_len = self.cond_embed_layer.gen_x_batch(q, col)
-            col_inp_var, col_name_len, col_len = self.cond_embed_layer.gen_col_batch(col)
+            col_inp_var, col_name_len, col_len = self.cond_embed_layer.gen_col_batch(q,col)
             max_x_len = max(x_len)
             cond_score = self.cond_pred(x_emb_var, x_len, col_inp_var, col_name_len, col_len, col_num, gt_where, gt_cond, reinforce=reinforce)
             
             
             x_emb_var, x_len = self.where_embed_layer.gen_x_batch(q, col)
-            col_inp_var, col_name_len, col_len = self.where_embed_layer.gen_col_batch(col)
+            col_inp_var, col_name_len, col_len = self.where_embed_layer.gen_col_batch(q,col)
             max_x_len = max(x_len)
             where_rela_score = self.where_rela_pred(x_emb_var, x_len, col_inp_var, col_name_len, col_len, col_num)
         else:
             x_emb_var, x_len = self.embed_layer.gen_x_batch(q, col)
-            col_inp_var, col_name_len, col_len = self.embed_layer.gen_col_batch(col)
+            col_inp_var, col_name_len, col_len = self.embed_layer.gen_col_batch(q,col)
             sel_num_score = self.sel_num(x_emb_var, x_len, col_inp_var, col_name_len, col_len, col_num)
             # x_emb_var: embedding of each question
             # x_len: length of each question

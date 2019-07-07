@@ -27,10 +27,13 @@ if __name__ == '__main__':
         batch_size=args.bs
     learning_rate = 1e-3
 
+    
+    
     # load dataset
     train_sql, train_table, train_db, dev_sql, dev_table, dev_db = load_dataset(use_small=use_small)
+    
 
-    word_emb = load_word_emb('data/bert_char_embedding.json')
+    word_emb = load_word_emb('data/new_bert_char_embedding.json')
     model = SQLNet(word_emb,N_word=n_word, use_ca=args.ca, gpu=gpu, trainable_emb=args.train_emb)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=0)
 
